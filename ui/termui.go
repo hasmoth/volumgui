@@ -16,39 +16,6 @@ import (
 	"github.com/gizak/termui/v3/widgets"
 )
 
-// TODO: transfer to json
-// dimensions
-var term_x = 40
-var term_y = 15
-
-// headers
-var hh = 3
-var hw = term_x
-
-// footers
-var fh = 3
-var flw = term_x - frw
-var frw = 10
-
-// track details
-var ty = hh
-var tx = term_x - 12
-var th = pgy - 4
-
-// player gauge
-var pgy = term_y - 5
-var pgh = 3
-var pgw = term_x
-
-// playback details
-var py = hh
-var pw = tx
-var px = tx
-var ph = pgy - py
-
-// globals
-var show_border = false
-
 type Display struct {
 	Wait              *sync.WaitGroup
 	DoneChan          <-chan bool
@@ -87,7 +54,6 @@ func (d *Display) Draw() {
 			d.Close()
 		}
 	}
-	// TODO: update time in header independetly from StateChan
 }
 
 type PlayDuration struct {
@@ -176,6 +142,12 @@ func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State
 		errorLog.Fatalf("failed to initialize termui: %v", err)
 	}
 
+	show_border := false
+
+	grid := ui.NewGrid()
+	termWidth, termHeight := ui.TerminalDimensions()
+	grid.SetRect(0, 0, termWidth, termHeight)
+
 	display := Display{
 		Wait:         wg,
 		DoneChan:     doneChan,
@@ -189,43 +161,34 @@ func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State
 	display.uiHeader = widgets.NewParagraph()
 	header_string := fmt.Sprintf("%s%31s", "VOLUMIO", time.Now().Format("2006-01-02 15:04"))
 	display.uiHeader.Text = header_string
-	display.uiHeader.SetRect(0, 0, ui_config.HeaderWidth, ui_config.HeaderHeight)
 	display.uiHeader.Border = show_border
 	display.uiHeader.TextStyle.Fg = ui.ColorCyan
 	display.uiHeader.TextStyle.Modifier = ui.ModifierBold
 
 	// footer left
 	display.uiFooterLeft = widgets.NewParagraph()
-	display.uiFooterLeft.SetRect(0, term_y-fh, flw, term_y)
 	display.uiFooterLeft.Border = show_border
-	// display.uiFooterLeft.Text = fmt.Sprintf("%s", "127.0.0.1")
 
 	// footer right
 	display.uiFooterRight = widgets.NewGauge()
-	display.uiFooterRight.SetRect(term_x-frw, term_y-fh, term_x, term_y)
 	display.uiFooterRight.Border = show_border
 	display.uiFooterRight.Percent = 0
 	display.uiFooterRight.Label = fmt.Sprintf("%d", display.uiFooterRight.Percent)
 
 	// playback details
 	display.uiPlaybackDetails = widgets.NewList()
-	display.uiPlaybackDetails.SetRect(0, py, px, py+ph)
 	display.uiPlaybackDetails.Border = show_border
-	// display.uiPlaybackDetails.Rows = player.getPlaybackDetails()
 	display.uiPlaybackDetails.SelectedRow = 0
 	display.uiPlaybackDetails.SelectedRowStyle.Fg = ui.ColorYellow
 	display.uiPlaybackDetails.SelectedRowStyle.Modifier = ui.ModifierBold
 
 	// track details
 	display.uiTrackDetails = widgets.NewList()
-	display.uiTrackDetails.SetRect(tx, ty, term_x, ty+th)
 	display.uiTrackDetails.Title = "track"
-	// display.uiTrackDetails.Rows = details.getTrackDetails()
-	display.uiTrackDetails.Border = true //show_border
+	display.uiTrackDetails.Border = true
 
 	// player gauge
 	display.uiPlaybackGuage = widgets.NewGauge()
-	display.uiPlaybackGuage.SetRect(0, pgy, pgw, pgy+pgh)
 	display.uiPlaybackGuage.Border = show_border
 	display.uiPlaybackGuage.BarColor = ui.ColorYellow
 	display.uiPlaybackGuage.Percent = 76
@@ -239,13 +202,20 @@ func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State
 	// g.BarColor = ui.ColorRed
 	// g.BorderStyle.Fg = ui.ColorWhite
 	// g.TitleStyle.Fg = ui.ColorCyan
-	ui.Render(
-		display.uiHeader,
-		display.uiFooterLeft,
-		display.uiFooterRight,
-		display.uiTrackDetails,
-		display.uiPlaybackDetails,
+
+	grid.Set(
+		ui.NewRow(1.0/5, display.uiHeader),
+		ui.NewRow(2.0/5,
+			ui.NewCol(7.0/10, display.uiPlaybackDetails),
+			ui.NewCol(3.0/10, display.uiTrackDetails),
+		),
+		ui.NewRow(1.0/5, display.uiPlaybackGuage),
+		ui.NewRow(1.0/5,
+			ui.NewCol(2.0/3, display.uiFooterLeft),
+			ui.NewCol(1.0/3, display.uiFooterRight),
+		),
 	)
+	ui.Render(grid)
 
 	return &display
 }
