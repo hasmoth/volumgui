@@ -16,6 +16,11 @@ import (
 	"github.com/gizak/termui/v3/widgets"
 )
 
+var (
+	once     sync.Once
+	instance *Display
+)
+
 type Display struct {
 	Wait              *sync.WaitGroup
 	DoneChan          <-chan bool
@@ -34,101 +39,102 @@ type Display struct {
 	uiPlaybackGuage   *widgets.Gauge
 }
 
-// TODO: singleton?
 func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State, uiDoneChan chan<- bool, infoLog *log.Logger, errorLog *log.Logger) *Display {
-	if err := ui.Init(); err != nil {
-		errorLog.Fatalf("failed to initialize termui: %v", err)
-	}
+	once.Do(func() {
+		if err := ui.Init(); err != nil {
+			errorLog.Fatalf("failed to initialize termui: %v", err)
+		}
 
-	show_border := false
+		show_border := false
 
-	grid := ui.NewGrid()
-	termWidth, termHeight := ui.TerminalDimensions()
-	grid.SetRect(0, 0, termWidth, termHeight)
+		grid := ui.NewGrid()
+		termWidth, termHeight := ui.TerminalDimensions()
+		grid.SetRect(0, 0, termWidth, termHeight)
 
-	display := Display{
-		Wait:         wg,
-		DoneChan:     doneChan,
-		InfoLog:      infoLog,
-		ErrorLog:     errorLog,
-		StateChan:    stateChan,
-		uiEventsChan: ui.PollEvents(),
-		UiDoneChan:   uiDoneChan,
-	}
+		display := Display{
+			Wait:         wg,
+			DoneChan:     doneChan,
+			InfoLog:      infoLog,
+			ErrorLog:     errorLog,
+			StateChan:    stateChan,
+			uiEventsChan: ui.PollEvents(),
+			UiDoneChan:   uiDoneChan,
+		}
 
-	// object to rotate title string
-	title_string := stringRotate{
-		stringPadding: "    ",
-		ticker:        *time.NewTicker(500 * time.Millisecond),
-		increment:     1,
-		doneChan:      display.DoneChan,
-		stringChan:    make(chan string),
-	}
-	display.stringRotate = &title_string
+		// object to rotate title string
+		title_string := stringRotate{
+			stringPadding: "    ",
+			ticker:        *time.NewTicker(500 * time.Millisecond),
+			increment:     1,
+			doneChan:      display.DoneChan,
+			stringChan:    make(chan string),
+		}
+		display.stringRotate = &title_string
 
-	go display.stringRotate.rotateString()
+		go display.stringRotate.rotateString()
 
-	// header
-	display.uiHeader = widgets.NewParagraph()
-	header_string := fmt.Sprintf("%s%31s", "VOLUMIO", time.Now().Format("2006-01-02 15:04"))
-	display.uiHeader.Text = header_string
-	display.uiHeader.Border = show_border
-	display.uiHeader.TextStyle.Fg = ui.ColorCyan
-	display.uiHeader.TextStyle.Modifier = ui.ModifierBold
+		// header
+		display.uiHeader = widgets.NewParagraph()
+		header_string := fmt.Sprintf("%s%31s", "VOLUMIO", time.Now().Format("2006-01-02 15:04"))
+		display.uiHeader.Text = header_string
+		display.uiHeader.Border = show_border
+		display.uiHeader.TextStyle.Fg = ui.ColorCyan
+		display.uiHeader.TextStyle.Modifier = ui.ModifierBold
 
-	// footer left
-	display.uiFooterLeft = widgets.NewParagraph()
-	display.uiFooterLeft.Border = show_border
+		// footer left
+		display.uiFooterLeft = widgets.NewParagraph()
+		display.uiFooterLeft.Border = show_border
 
-	// footer right
-	display.uiFooterRight = widgets.NewGauge()
-	display.uiFooterRight.Border = show_border
-	display.uiFooterRight.Percent = 0
-	display.uiFooterRight.Label = fmt.Sprintf("%d", display.uiFooterRight.Percent)
+		// footer right
+		display.uiFooterRight = widgets.NewGauge()
+		display.uiFooterRight.Border = show_border
+		display.uiFooterRight.Percent = 0
+		display.uiFooterRight.Label = fmt.Sprintf("%d", display.uiFooterRight.Percent)
 
-	// playback details
-	display.uiPlaybackDetails = widgets.NewList()
-	display.uiPlaybackDetails.Border = show_border
-	display.uiPlaybackDetails.SelectedRow = 0
-	display.uiPlaybackDetails.SelectedRowStyle.Fg = ui.ColorYellow
-	display.uiPlaybackDetails.SelectedRowStyle.Modifier = ui.ModifierBold
+		// playback details
+		display.uiPlaybackDetails = widgets.NewList()
+		display.uiPlaybackDetails.Border = show_border
+		display.uiPlaybackDetails.SelectedRow = 0
+		display.uiPlaybackDetails.SelectedRowStyle.Fg = ui.ColorYellow
+		display.uiPlaybackDetails.SelectedRowStyle.Modifier = ui.ModifierBold
 
-	// track details
-	display.uiTrackDetails = widgets.NewList()
-	display.uiTrackDetails.Title = "track"
-	display.uiTrackDetails.Border = true
+		// track details
+		display.uiTrackDetails = widgets.NewList()
+		display.uiTrackDetails.Title = "track"
+		display.uiTrackDetails.Border = true
 
-	// player gauge
-	display.uiPlaybackGuage = widgets.NewGauge()
-	display.uiPlaybackGuage.Border = show_border
-	display.uiPlaybackGuage.BarColor = ui.ColorYellow
-	display.uiPlaybackGuage.Percent = 76
-	display.uiPlaybackGuage.Label = fmt.Sprintf("%d", display.uiPlaybackGuage.Percent)
+		// player gauge
+		display.uiPlaybackGuage = widgets.NewGauge()
+		display.uiPlaybackGuage.Border = show_border
+		display.uiPlaybackGuage.BarColor = ui.ColorYellow
+		display.uiPlaybackGuage.Percent = 76
+		display.uiPlaybackGuage.Label = fmt.Sprintf("%d", display.uiPlaybackGuage.Percent)
 
-	// TODO: wifi signal gauge
-	// g := widgets.NewGauge()
-	// g.Title = "wifi"
-	// g.Percent = 0
-	// g.SetRect(0, 6, term_x, 4)
-	// g.BarColor = ui.ColorRed
-	// g.BorderStyle.Fg = ui.ColorWhite
-	// g.TitleStyle.Fg = ui.ColorCyan
+		// TODO: wifi signal gauge
+		// g := widgets.NewGauge()
+		// g.Title = "wifi"
+		// g.Percent = 0
+		// g.SetRect(0, 6, term_x, 4)
+		// g.BarColor = ui.ColorRed
+		// g.BorderStyle.Fg = ui.ColorWhite
+		// g.TitleStyle.Fg = ui.ColorCyan
 
-	grid.Set(
-		ui.NewRow(1.0/5, display.uiHeader),
-		ui.NewRow(2.0/5,
-			ui.NewCol(7.0/10, display.uiPlaybackDetails),
-			ui.NewCol(3.0/10, display.uiTrackDetails),
-		),
-		ui.NewRow(1.0/5, display.uiPlaybackGuage),
-		ui.NewRow(1.0/5,
-			ui.NewCol(2.0/3, display.uiFooterLeft),
-			ui.NewCol(1.0/3, display.uiFooterRight),
-		),
-	)
-	ui.Render(grid)
-
-	return &display
+		grid.Set(
+			ui.NewRow(1.0/5, display.uiHeader),
+			ui.NewRow(2.0/5,
+				ui.NewCol(7.0/10, display.uiPlaybackDetails),
+				ui.NewCol(3.0/10, display.uiTrackDetails),
+			),
+			ui.NewRow(1.0/5, display.uiPlaybackGuage),
+			ui.NewRow(1.0/5,
+				ui.NewCol(2.0/3, display.uiFooterLeft),
+				ui.NewCol(1.0/3, display.uiFooterRight),
+			),
+		)
+		ui.Render(grid)
+		instance = &display
+	})
+	return instance
 }
 
 func (d *Display) Close() {
