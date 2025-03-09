@@ -34,7 +34,7 @@ func Test_App(m *testing.T) {
 		BitDepth:   "124 kbit",
 		SampleRate: "44.1 kHz",
 		Duration:   100,
-		Volume:     42,
+		Volume:     100,
 		Status:     "play",
 		TrackType:  "webradio",
 		Service:    "webradio",

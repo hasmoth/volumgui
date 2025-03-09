@@ -17,8 +17,10 @@ import (
 )
 
 var (
-	once     sync.Once
-	instance *Display
+	once       sync.Once
+	instance   *Display
+	termWidth  int
+	termHeight int
 )
 
 type Display struct {
@@ -48,7 +50,7 @@ func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State
 		show_border := false
 
 		grid := ui.NewGrid()
-		termWidth, termHeight := ui.TerminalDimensions()
+		termWidth, termHeight = ui.TerminalDimensions()
 		grid.SetRect(0, 0, termWidth, termHeight)
 
 		display := Display{
@@ -75,19 +77,22 @@ func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State
 
 		// header
 		display.uiHeader = widgets.NewParagraph()
-		header_string := fmt.Sprintf("%s%31s", "VOLUMIO", time.Now().Format("2006-01-02 15:04"))
+		header_string := fmt.Sprintf("%s%*s", "VOLUMIO", termWidth-12, time.Now().Format("2006-01-02 15:04"))
 		display.uiHeader.Text = header_string
 		display.uiHeader.Border = show_border
-		display.uiHeader.TextStyle.Fg = ui.ColorCyan
+		display.uiHeader.TextStyle.Fg = ui.ColorMagenta
 		display.uiHeader.TextStyle.Modifier = ui.ModifierBold
 
 		// footer left
 		display.uiFooterLeft = widgets.NewParagraph()
 		display.uiFooterLeft.Border = show_border
+		display.uiFooterLeft.TextStyle.Fg = ui.ColorMagenta
 
 		// footer right
 		display.uiFooterRight = widgets.NewGauge()
 		display.uiFooterRight.Border = show_border
+		display.uiFooterRight.BarColor = ui.ColorMagenta
+		display.uiFooterRight.LabelStyle.Fg = ui.ColorMagenta
 		display.uiFooterRight.Percent = 0
 		display.uiFooterRight.Label = fmt.Sprintf("%d", display.uiFooterRight.Percent)
 
@@ -107,17 +112,9 @@ func NewUi(wg *sync.WaitGroup, doneChan <-chan bool, stateChan chan client.State
 		display.uiPlaybackGuage = widgets.NewGauge()
 		display.uiPlaybackGuage.Border = show_border
 		display.uiPlaybackGuage.BarColor = ui.ColorYellow
-		display.uiPlaybackGuage.Percent = 76
+		display.uiPlaybackGuage.LabelStyle.Fg = ui.ColorYellow
+		display.uiPlaybackGuage.Percent = 100
 		display.uiPlaybackGuage.Label = fmt.Sprintf("%d", display.uiPlaybackGuage.Percent)
-
-		// TODO: wifi signal gauge
-		// g := widgets.NewGauge()
-		// g.Title = "wifi"
-		// g.Percent = 0
-		// g.SetRect(0, 6, term_x, 4)
-		// g.BarColor = ui.ColorRed
-		// g.BorderStyle.Fg = ui.ColorWhite
-		// g.TitleStyle.Fg = ui.ColorCyan
 
 		grid.Set(
 			ui.NewRow(1.0/5, display.uiHeader),
@@ -202,7 +199,7 @@ func (d *Display) updatePlaybackGauge() {
 }
 
 func (d *Display) update() {
-	d.uiFooterLeft.Text = d.getIp()
+	d.uiFooterLeft.Text = d.getIp() + strings.Repeat("/", int(d.getWifiSignalStrength()))
 	d.uiFooterRight.Percent = d.State.Volume
 	d.uiFooterRight.Label = fmt.Sprintf("%d", d.uiFooterRight.Percent)
 	d.uiTrackDetails.Rows = d.getTrackDetails()
@@ -261,7 +258,11 @@ func (s *stringRotate) close() {
 }
 
 func getHeaderString() string {
-	return fmt.Sprintf("%s%31s", "VOLUMIO", time.Now().Format("2006-01-02 15:04"))
+	var str string
+	for len(str) < termWidth-25 {
+		str += "/"
+	}
+	return fmt.Sprintf("%s%s%s", "VOLUMIO", str, time.Now().Format("2006-01-02 15:04"))
 }
 
 func (d *Display) getIp() string {
@@ -274,13 +275,22 @@ func (d *Display) getIp() string {
 	return strings.TrimSuffix(string(out), "\n") + fmt.Sprintf(" (%s)", iface_str)
 }
 
-func (d *Display) getWifiSignal() int {
+func (d *Display) getWifiSignalStrength() float64 {
 	cmd := "iw dev wlp5s0 link | grep -Po 'signal: -\\K[\\d]+'"
 	out, _ := exec.Command("bash", "-c", cmd).Output()
 
 	signal, _ := strconv.Atoi(strings.TrimSuffix(string(out), "\n"))
 
-	return signal
+	switch {
+	case signal < 50:
+		return 4.0
+	case signal < 60:
+		return 3.0
+	case signal < 70:
+		return 2.0
+	default:
+		return 1.0
+	}
 }
 
 func (d *Display) getElapsedPercent(seek int, duration int) int {
