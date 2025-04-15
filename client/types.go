@@ -12,6 +12,7 @@ type State struct {
 	Seek       int    `json:"seek"`       // seek is the item's current elapsed time
 	Duration   int    `json:"duration"`   // duration is the item's duration, if any
 	SampleRate string `json:"samplerate"` // samplerate current samplerate
+	BitRate    string `json:"bitrate"`    // bitrate
 	BitDepth   string `json:"bitdepth"`   // bitdepth bitdepth
 	Channels   int    `json:"channels"`   // channels mono or stereo
 	Volume     int    `json:"volume"`     // volume current Volume

@@ -210,7 +210,11 @@ func (d *Display) update() {
 }
 
 func (d *Display) getTrackDetails() []string {
-	return []string{d.State.BitDepth, d.State.SampleRate, d.State.TrackType, d.State.Service}
+	if d.State.TrackType == "webradio" {
+		return []string{d.State.BitRate, d.State.SampleRate, d.State.TrackType, d.State.Service}
+	} else {
+		return []string{d.State.BitDepth, d.State.SampleRate, d.State.TrackType, d.State.Service}
+	}
 }
 
 func (d *Display) getPlaybackDetails() []string {
